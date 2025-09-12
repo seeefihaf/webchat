@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ephemeral Chat</title>
+  <style>
+    body{font-family:sans-serif;margin:0;display:flex;height:100vh}
+    .sidebar{width:220px;border-right:1px solid #eee;padding:12px;box-sizing:border-box}
+    .main{flex:1;display:flex;flex-direction:column}
+    .messages{flex:1;padding:12px;overflow:auto}
+    .message{margin-bottom:10px}
+    .meta{font-size:12px;color:#666}
+    .composer{display:flex;padding:10px;border-top:1px solid #eee}
+    .composer input[type=text]{flex:1;padding:8px;margin-right:8px}
+    .composer button{padding:8px 12px}
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div id="status">Connecting...</div>
+    <hr />
+    <div><strong>Connected users</strong></div>
+    <ul id="users"></ul>
+  </div>
+  <div class="main">
+    <div class="messages" id="messages"></div>
+    <form id="composer" class="composer" action="#">
+      <input id="text" type="text" placeholder="Type a message" autocomplete="off" />
+      <button>Send</button>
+    </form>
+  </div>
+
+  <script>
+    let name = null;
+    while (!name) {
+      name = prompt('Enter a display name:', '');
+      if (name === null) { name = 'Anonymous'; break; }
+      name = name.trim();
+      if (!name) name = null;
+    }
+
+    const messagesEl = document.getElementById('messages');
+    const usersEl = document.getElementById('users');
+    const statusEl = document.getElementById('status');
+
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(proto + '://' + location.host);
+
+    const users = new Set();
+
+    function addMessage(obj) {
+      const el = document.createElement('div');
+      el.className = 'message';
+      const time = new Date(obj.ts || Date.now()).toLocaleTimeString();
+      if (obj.type === 'message') {
+        el.innerHTML = `<div class="meta"><strong>${escapeHtml(obj.name)}</strong> <span>${time}</span></div><div>${escapeHtml(obj.text)}</div>`;
+      } else if (obj.type === 'presence') {
+        el.innerHTML = `<div class="meta">* ${escapeHtml(obj.name)} ${escapeHtml(obj.event)} (${time})</div>`;
+      }
+      messagesEl.appendChild(el);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    ws.addEventListener('open', () => {
+      statusEl.textContent = 'Connected as ' + name;
+      ws.send(JSON.stringify({ type: 'join', name }));
+    });
+
+    ws.addEventListener('message', (ev) => {
+      let data;
+      try { data = JSON.parse(ev.data); } catch (e) { return; }
+      if (data.type === 'message') {
+        addMessage(data);
+      } else if (data.type === 'presence') {
+        addMessage(data);
+        if (data.event === 'joined') { users.add(data.name); }
+        else if (data.event === 'left') { users.delete(data.name); }
+        renderUsers();
+      }
+    });
+
+    ws.addEventListener('close', () => statusEl.textContent = 'Disconnected');
+    ws.addEventListener('error', () => statusEl.textContent = 'Connection error');
+
+    function renderUsers(){
+      usersEl.innerHTML = '';
+      const arr = Array.from(users);
+      if (!arr.includes(name)) arr.unshift(name);
+      arr.forEach(u => {
+        const li = document.createElement('li');
+        li.textContent = u;
+        usersEl.appendChild(li);
+      });
+    }
+
+    const form = document.getElementById('composer');
+    const input = document.getElementById('text');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'message', text }));
+        input.value = '';
+      }
+    });
+
+    window.addEventListener('beforeunload', () => { try { ws.close(); } catch(e){} });
+  </script>
+</body>
+</html>
