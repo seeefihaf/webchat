@@ -1,0 +1,19 @@
+Software verification report
+Date: 2026-07-09
+Repository: seeefihaf/webchat
+
+Checks performed:
+1. Installed dependencies in /home/runner/work/webchat/webchat/chat-app with npm install.
+2. Started the app with npm run start and confirmed server startup on http://localhost:3000.
+3. Loaded the homepage successfully via HTTP.
+4. Ran a WebSocket smoke test (join + message) and confirmed message flow works.
+5. Reviewed server and frontend code for image upload and image location extraction support.
+
+Findings:
+- Core chat functionality is working (connections, join/presence, text messages).
+- Image capture/upload is not implemented.
+- Image geolocation extraction (EXIF/GPS/location detection) is not implemented.
+
+Issue summary:
+- The current software cannot take images.
+- The current software cannot provide where images were taken.
