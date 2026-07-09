@@ -1,13 +1,14 @@
 {
-  "name": "chat-app",
+  "name": "beacon",
   "version": "1.0.0",
-  "description": "Simple ephemeral chat without login",
+  "description": "Simple Beacon OSINT app for image geolocation from EXIF metadata",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "exifr": "^7.1.3",
     "express": "^4.18.2",
-    "ws": "^8.12.0"
+    "multer": "^2.2.0"
   }
 }

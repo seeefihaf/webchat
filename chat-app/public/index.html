@@ -3,114 +3,339 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Ephemeral Chat</title>
+  <title>Beacon - Image Location Finder</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
   <style>
-    body{font-family:sans-serif;margin:0;display:flex;height:100vh}
-    .sidebar{width:220px;border-right:1px solid #eee;padding:12px;box-sizing:border-box}
-    .main{flex:1;display:flex;flex-direction:column}
-    .messages{flex:1;padding:12px;overflow:auto}
-    .message{margin-bottom:10px}
-    .meta{font-size:12px;color:#666}
-    .composer{display:flex;padding:10px;border-top:1px solid #eee}
-    .composer input[type=text]{flex:1;padding:8px;margin-right:8px}
-    .composer button{padding:8px 12px}
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: linear-gradient(-45deg, #0b0f18, #111827, #181c2b, #0c1220);
+      background-size: 400% 400%;
+      animation: gradientMove 12s ease infinite;
+      color: #f3f4f6;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 20px 0;
+    }
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .card {
+      width: min(980px, 94vw);
+      background: rgba(23, 26, 33, 0.88);
+      border: 1px solid #2a3141;
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      animation: reveal 500ms ease;
+    }
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    h1 { margin-top: 0; }
+    p { color: #c6cbda; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    @media (min-width: 980px) {
+      .grid {
+        grid-template-columns: 1.25fr 1fr;
+      }
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    input[type="file"] {
+      background: #10131a;
+      border: 1px solid #30374a;
+      color: #f3f4f6;
+      border-radius: 8px;
+      padding: 8px;
+      flex: 1;
+      min-width: 240px;
+    }
+    button {
+      background: linear-gradient(90deg, #3b82f6, #2563eb);
+      color: white;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: transform 160ms ease, filter 160ms ease;
+    }
+    button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .result {
+      background: #0f131d;
+      border: 1px solid #2a3244;
+      border-radius: 10px;
+      padding: 14px;
+      min-height: 110px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .panel {
+      background: #0f131d;
+      border: 1px solid #2a3244;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    #map {
+      width: 100%;
+      height: 380px;
+      border-radius: 10px;
+      border: 1px solid #2f374b;
+      overflow: hidden;
+      transform: translateZ(0);
+    }
+    .hidden { display: none; }
+    .actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .link-btn {
+      display: inline-block;
+      text-decoration: none;
+      background: #1f2937;
+      color: #dce6ff;
+      border: 1px solid #3a465f;
+      border-radius: 8px;
+      padding: 9px 12px;
+      transition: transform 160ms ease, border-color 160ms ease;
+    }
+    .link-btn:hover { transform: translateY(-1px); border-color: #5f7fb8; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    th, td {
+      border-bottom: 1px solid #293043;
+      padding: 7px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { color: #b8c7e8; font-weight: 600; }
+    a { color: #7cb7ff; }
+    .error { color: #ff9090; }
+    .warn { color: #f8d47a; }
+    .ok { color: #83f2a8; }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #2e3a53;
+      border-top-color: #7cb7ff;
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: text-bottom;
+      margin-right: 8px;
+      animation: spin 850ms linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <div id="status">Connecting...</div>
-    <hr />
-    <div><strong>Connected users</strong></div>
-    <ul id="users"></ul>
-  </div>
-  <div class="main">
-    <div class="messages" id="messages"></div>
-    <form id="composer" class="composer" action="#">
-      <input id="text" type="text" placeholder="Type a message" autocomplete="off" />
-      <button>Send</button>
-    </form>
-  </div>
+  <main class="card">
+    <h1>Beacon</h1>
+    <p>Upload an image to extract GPS metadata, inspect map coordinates, open Google Street View, and run 3-pass AI plausibility checks.</p>
+    <div class="grid">
+      <section>
+        <form id="locate-form">
+          <div class="row">
+            <input id="image" name="image" type="file" accept="image/*" required />
+            <button id="submit" type="submit">Analyze Image</button>
+          </div>
+        </form>
+        <section id="result" class="result">Ready. Select an image to start.</section>
+        <section id="verify-panel" class="panel hidden" style="margin-top:12px;">
+          <h3 style="margin:0 0 8px 0;">3-Pass AI Verification</h3>
+          <div id="verify-summary"></div>
+          <table id="verify-table">
+            <thead>
+              <tr><th>Pass</th><th>Match</th><th>Confidence</th><th>Reason</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </section>
+      <section class="panel">
+        <h3 style="margin-top:0;">Map Review</h3>
+        <div id="map"></div>
+        <div class="actions" id="map-actions"></div>
+        <div id="map-hint" class="warn" style="margin-top:10px;">Map appears after successful geolocation.</div>
+      </section>
+    </div>
+  </main>
 
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
   <script>
-    let name = null;
-    while (!name) {
-      name = prompt('Enter a display name:', '');
-      if (name === null) { name = 'Anonymous'; break; }
-      name = name.trim();
-      if (!name) name = null;
+    const form = document.getElementById('locate-form');
+    const imageInput = document.getElementById('image');
+    const submitBtn = document.getElementById('submit');
+    const resultEl = document.getElementById('result');
+    const verifyPanel = document.getElementById('verify-panel');
+    const verifySummary = document.getElementById('verify-summary');
+    const verifyTableBody = document.querySelector('#verify-table tbody');
+    const mapHint = document.getElementById('map-hint');
+    const mapActions = document.getElementById('map-actions');
+
+    let map = null;
+    let marker = null;
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
-    const messagesEl = document.getElementById('messages');
-    const usersEl = document.getElementById('users');
-    const statusEl = document.getElementById('status');
+    function setResult(html) {
+      resultEl.innerHTML = html;
+    }
 
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(proto + '://' + location.host);
-
-    const users = new Set();
-
-    function addMessage(obj) {
-      const el = document.createElement('div');
-      el.className = 'message';
-      const time = new Date(obj.ts || Date.now()).toLocaleTimeString();
-      if (obj.type === 'message') {
-        el.innerHTML = `<div class="meta"><strong>${escapeHtml(obj.name)}</strong> <span>${time}</span></div><div>${escapeHtml(obj.text)}</div>`;
-      } else if (obj.type === 'presence') {
-        el.innerHTML = `<div class="meta">* ${escapeHtml(obj.name)} ${escapeHtml(obj.event)} (${time})</div>`;
+    function ensureMap(latitude, longitude) {
+      if (!map) {
+        map = L.map('map', { zoomControl: true }).setView([latitude, longitude], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+      } else {
+        map.setView([latitude, longitude], 16);
       }
-      messagesEl.appendChild(el);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
 
-    function escapeHtml(s){
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-
-    ws.addEventListener('open', () => {
-      statusEl.textContent = 'Connected as ' + name;
-      ws.send(JSON.stringify({ type: 'join', name }));
-    });
-
-    ws.addEventListener('message', (ev) => {
-      let data;
-      try { data = JSON.parse(ev.data); } catch (e) { return; }
-      if (data.type === 'message') {
-        addMessage(data);
-      } else if (data.type === 'presence') {
-        addMessage(data);
-        if (data.event === 'joined') { users.add(data.name); }
-        else if (data.event === 'left') { users.delete(data.name); }
-        renderUsers();
+      if (!marker) {
+        marker = L.marker([latitude, longitude]).addTo(map);
+      } else {
+        marker.setLatLng([latitude, longitude]);
       }
-    });
+    }
 
-    ws.addEventListener('close', () => statusEl.textContent = 'Disconnected');
-    ws.addEventListener('error', () => statusEl.textContent = 'Connection error');
+    function renderVerification(aiVerification) {
+      verifyTableBody.innerHTML = '';
+      if (!aiVerification) {
+        verifyPanel.classList.add('hidden');
+        return;
+      }
 
-    function renderUsers(){
-      usersEl.innerHTML = '';
-      const arr = Array.from(users);
-      if (!arr.includes(name)) arr.unshift(name);
-      arr.forEach(u => {
-        const li = document.createElement('li');
-        li.textContent = u;
-        usersEl.appendChild(li);
+      verifyPanel.classList.remove('hidden');
+      if (!aiVerification.available) {
+        verifySummary.innerHTML = `<span class="warn">${escapeHtml(aiVerification.warning || 'AI verification unavailable')}</span>`;
+        return;
+      }
+
+      const summary = aiVerification.summary || {};
+      const labelClass = summary.matchedMajority ? 'ok' : 'warn';
+      verifySummary.innerHTML = [
+        `<div><strong>Model:</strong> ${escapeHtml(aiVerification.model || 'Unknown')}</div>`,
+        `<div class="${labelClass}"><strong>Majority Match:</strong> ${summary.matchedMajority ? 'YES' : 'NO'}</div>`,
+        `<div><strong>Successful Passes:</strong> ${summary.successfulPasses}/${summary.passesRequested}</div>`,
+        `<div><strong>Average Confidence:</strong> ${summary.averageConfidence}</div>`
+      ].join('');
+
+      (aiVerification.attempts || []).forEach((attempt) => {
+        const row = document.createElement('tr');
+        const matchClass = attempt.match ? 'ok' : 'warn';
+        row.innerHTML = `
+          <td>${attempt.pass}</td>
+          <td class="${matchClass}">${attempt.ok ? (attempt.match ? 'YES' : 'NO') : 'ERROR'}</td>
+          <td>${Number(attempt.confidence || 0).toFixed(3)}</td>
+          <td>${escapeHtml(attempt.reason || '')}</td>
+        `;
+        verifyTableBody.appendChild(row);
       });
     }
 
-    const form = document.getElementById('composer');
-    const input = document.getElementById('text');
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'message', text }));
-        input.value = '';
+    function renderMapActions(mapUrl, streetViewUrl) {
+      mapActions.innerHTML = '';
+      const links = [
+        { href: mapUrl, label: 'Open OpenStreetMap' },
+        { href: streetViewUrl, label: 'Open Google Street View' }
+      ];
+      links.forEach((entry) => {
+        if (!entry.href) return;
+        const link = document.createElement('a');
+        link.className = 'link-btn';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.href = entry.href;
+        link.textContent = entry.label;
+        mapActions.appendChild(link);
+      });
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const file = imageInput.files && imageInput.files[0];
+      if (!file) {
+        setResult('<span class="error">Please choose an image file.</span>');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      setResult('<span class="spinner"></span>Analyzing metadata, map context, and running 3 AI passes...');
+      verifyPanel.classList.add('hidden');
+      mapActions.innerHTML = '';
+
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch('/api/locate', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to process this image.');
+        }
+
+        ensureMap(data.latitude, data.longitude);
+        mapHint.textContent = 'Coordinates loaded on map.';
+        renderMapActions(data.mapUrl, data.streetViewUrl);
+        renderVerification(data.aiVerification);
+
+        const parts = [
+          `<div><strong>Coordinates:</strong> ${escapeHtml(data.latitude)}, ${escapeHtml(data.longitude)}</div>`
+        ];
+        if (data.location && data.location.displayName) {
+          parts.push(`<div><strong>Resolved Address:</strong> ${escapeHtml(data.location.displayName)}</div>`);
+        }
+        if (data.warning) {
+          parts.push(`<div class="warn">${escapeHtml(data.warning)}</div>`);
+        }
+        setResult(parts.join(''));
+      } catch (error) {
+        setResult(`<span class="error">${escapeHtml(error.message || 'Request failed')}</span>`);
+      } finally {
+        submitBtn.disabled = false;
+        if (map) {
+          setTimeout(() => map.invalidateSize(), 50);
+        }
       }
     });
-
-    window.addEventListener('beforeunload', () => { try { ws.close(); } catch(e){} });
   </script>
 </body>
 </html>
