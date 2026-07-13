@@ -76,6 +76,19 @@
           locationLine.textContent = 'Location: not available in image metadata';
         }
         el.appendChild(locationLine);
+        if (obj.smartLocation) {
+          const smartLine = document.createElement('div');
+          smartLine.className = 'meta';
+          const pct = Number.isFinite(Number(obj.smartLocation.confidence))
+            ? Math.round(Number(obj.smartLocation.confidence) * 100)
+            : 0;
+          const coordinates =
+            (typeof obj.smartLocation.latitude === 'number' && typeof obj.smartLocation.longitude === 'number')
+              ? ` (${obj.smartLocation.latitude.toFixed(5)}, ${obj.smartLocation.longitude.toFixed(5)})`
+              : '';
+          smartLine.textContent = `Smart estimate: ${obj.smartLocation.summary || 'unavailable'}${coordinates} (${pct}% confidence)`;
+          el.appendChild(smartLine);
+        }
       } else if (obj.type === 'presence') {
         el.innerHTML = `<div class="meta">* ${escapeHtml(obj.name)} ${escapeHtml(obj.event)} (${time})</div>`;
       }
@@ -95,7 +108,7 @@
     ws.addEventListener('message', (ev) => {
       let data;
       try { data = JSON.parse(ev.data); } catch (e) { return; }
-      if (data.type === 'message') {
+      if (data.type === 'message' || data.type === 'image') {
         addMessage(data);
       } else if (data.type === 'presence') {
         addMessage(data);

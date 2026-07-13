@@ -12,4 +12,6 @@ Current behavior:
 - Core chat functionality works (presence + text messages).
 - Users can send image files (up to 5MB).
 - If image EXIF contains GPS tags, location is shown as latitude/longitude.
-- If EXIF GPS is missing, UI shows: "Location: not available in image metadata".
+- If EXIF GPS is missing and OPENAI_API_KEY is configured, the app attempts a smart visual location estimate (GeoSpy-like behavior).
+- Smart estimate includes summary, optional coordinates, and confidence.
+- If AI is unavailable, the UI falls back to "Smart estimate unavailable".

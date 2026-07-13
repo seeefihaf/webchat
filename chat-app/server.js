@@ -12,6 +12,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const clients = new Map();
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 function parseImageDataUrl(imageDataUrl) {
   if (typeof imageDataUrl !== 'string') return null;
@@ -36,6 +38,70 @@ function getImageLocation(buffer) {
   }
 }
 
+function parseJsonObject(text) {
+  if (typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch (e) {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch (e2) {
+      return null;
+    }
+  }
+}
+
+async function getSmartImageLocation(imageDataUrl) {
+  if (!OPENAI_API_KEY || typeof fetch !== 'function') return null;
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + OPENAI_API_KEY
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0.2,
+        max_tokens: 180,
+        messages: [
+          {
+            role: 'system',
+            content: 'You estimate likely photo location from visual clues. Return strict JSON with keys: summary (string), confidence (0..1 number), latitude (number|null), longitude (number|null), country (string|null).'
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Estimate where this image was likely taken. If uncertain, keep confidence low.' },
+              { type: 'image_url', image_url: { url: imageDataUrl } }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) return { summary: 'Smart estimate unavailable', confidence: 0 };
+    const payload = await response.json();
+    const content = payload?.choices?.[0]?.message?.content;
+    const parsed = parseJsonObject(content);
+    if (!parsed) return { summary: 'Smart estimate unavailable', confidence: 0 };
+
+    const summary = typeof parsed.summary === 'string' ? parsed.summary : 'Smart estimate unavailable';
+    const confidenceRaw = Number(parsed.confidence);
+    const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0;
+    const latitude = Number.isFinite(Number(parsed.latitude)) ? Number(parsed.latitude) : null;
+    const longitude = Number.isFinite(Number(parsed.longitude)) ? Number(parsed.longitude) : null;
+    const country = typeof parsed.country === 'string' ? parsed.country : null;
+
+    return { summary, confidence, latitude, longitude, country };
+  } catch (e) {
+    return { summary: 'Smart estimate unavailable', confidence: 0 };
+  }
+}
+
 function broadcast(obj) {
   const raw = JSON.stringify(obj);
   wss.clients.forEach((c) => {
@@ -46,7 +112,7 @@ function broadcast(obj) {
 wss.on('connection', (ws) => {
   clients.set(ws, { name: null });
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let data;
     try {
       data = JSON.parse(raw);
@@ -73,12 +139,14 @@ wss.on('connection', (ws) => {
       const parsed = parseImageDataUrl(data.imageDataUrl);
       if (!parsed) return;
       const location = getImageLocation(parsed.buffer);
+      const smartLocation = location ? null : await getSmartImageLocation(`data:${parsed.mimeType};base64,${parsed.base64}`);
       const msg = {
         type: 'image',
         name: sender,
         mimeType: parsed.mimeType,
         imageDataUrl: `data:${parsed.mimeType};base64,${parsed.base64}`,
         location,
+        smartLocation,
         ts: Date.now()
       };
       broadcast(msg);
