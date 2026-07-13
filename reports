@@ -1,0 +1,17 @@
+Software verification + implementation report
+Date: 2026-07-09
+Repository: seeefihaf/webchat
+
+Implemented:
+1. Image upload/capture support added in the chat composer.
+2. Image message broadcasting added over WebSocket.
+3. Server-side EXIF GPS extraction added for uploaded images.
+4. Image location display added in chat messages.
+
+Current behavior:
+- Core chat functionality works (presence + text messages).
+- Users can send image files (up to 5MB).
+- If image EXIF contains GPS tags, location is shown as latitude/longitude.
+- If EXIF GPS is missing and OPENAI_API_KEY is configured, the app attempts a smart visual location estimate (GeoSpy-like behavior).
+- Smart estimate includes summary, optional coordinates, and confidence.
+- If AI is unavailable, the UI falls back to "Smart estimate unavailable".
