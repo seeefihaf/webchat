@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+### BEGIN INIT INFO
+# Provides:          kiosk
+# Required-Start:    $network weston
+# Default-Start:     5
+### END INIT INFO
+
+case "$1" in
+  start)
+    mkdir -p /tmp/xdg-kiosk
+    chown kiosk:kiosk /tmp/xdg-kiosk
+    chmod 0700 /tmp/xdg-kiosk
+    su -s /bin/sh - kiosk -c 'XDG_RUNTIME_DIR=/tmp/xdg-kiosk weston --backend=drm-backend.so --idle-time=0 --socket=wayland-1 >/tmp/weston.log 2>&1 &' 
+    sleep 2
+    su -s /bin/sh - kiosk -c 'XDG_RUNTIME_DIR=/tmp/xdg-kiosk WAYLAND_DISPLAY=wayland-1 /usr/bin/kiosk-browser-launch.sh >/tmp/kiosk-browser.log 2>&1 &' ;;
+  stop)
+    pkill -f chromium || true
+    pkill -f weston || true ;;
+esac

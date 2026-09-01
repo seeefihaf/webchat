@@ -1,0 +1,10 @@
+{
+  "URLBlocklist": ["*"],
+  "URLAllowlist": ["https://example.org/*"],
+  "RestoreOnStartup": 4,
+  "RestoreOnStartupURLs": ["https://example.org"],
+  "IncognitoModeAvailability": 1,
+  "PasswordManagerEnabled": false,
+  "DefaultPopupsSetting": 2,
+  "SafeBrowsingProtectionLevel": 2
+}

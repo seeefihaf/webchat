@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+### BEGIN INIT INFO
+# Provides:          persist
+# Required-Start:    $local_fs
+# Default-Start:     S
+### END INIT INFO
+
+PERSIST_DEV="/dev/disk/by-label/KIOSK-PERSIST"
+PERSIST_MNT="/persist"
+
+mkdir -p "$PERSIST_MNT" /home/kiosk/.cache /home/kiosk/.config
+
+if grep -qw copytoram /proc/cmdline; then
+    mount -t tmpfs -o mode=0755,size=1024m tmpfs "$PERSIST_MNT"
+else
+    if [ -b "$PERSIST_DEV" ]; then
+        mount -t ext4 -o rw,noatime "$PERSIST_DEV" "$PERSIST_MNT" || true
+    fi
+fi
+
+mkdir -p "$PERSIST_MNT/chromium-cache" "$PERSIST_MNT/chromium-config"
+mount --bind "$PERSIST_MNT/chromium-cache" /home/kiosk/.cache
+mount --bind "$PERSIST_MNT/chromium-config" /home/kiosk/.config
+chown -R kiosk:kiosk /home/kiosk "$PERSIST_MNT/chromium-cache" "$PERSIST_MNT/chromium-config"

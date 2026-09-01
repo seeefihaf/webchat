@@ -1,0 +1,4 @@
+config BR2_PACKAGE_WEBCHAT_KIOSK
+	bool "webchat kiosk custom package set"
+	help
+		Meta option for kiosk defaults.
